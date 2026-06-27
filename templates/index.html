@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkinAI — Personalized Skin Analysis</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+  <div class="container">
+
+    <header>
+      <h1>SkinAI</h1>
+      <p>Upload a selfie and get your personalized skincare routine in seconds</p>
+    </header>
+
+    <div class="upload-box" id="uploadBox">
+      <input type="file" id="fileInput" accept="image/*" hidden>
+      <div class="upload-content" id="uploadContent">
+        <div class="upload-icon">📸</div>
+        <p>Click to upload a selfie</p>
+        <span>Use natural light, face the camera directly</span>
+      </div>
+      <img id="previewImg" hidden>
+    </div>
+
+    <button class="analyze-btn" id="analyzeBtn" hidden>
+      Analyze My Skin
+    </button>
+
+    <div class="loading" id="loading" hidden>
+      <div class="spinner"></div>
+      <p>Analyzing your skin...</p>
+    </div>
+
+    <div class="results" id="results" hidden>
+
+      <div class="card tone-card">
+        <h2>Skin Tone</h2>
+        <div class="tone-info">
+          <div class="fitzpatrick" id="fitzpatrick"></div>
+          <div class="tone-details">
+            <p id="toneDescription"></p>
+            <p id="undertone"></p>
+            <p id="itaAngle"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Skin Conditions</h2>
+        <div id="conditionBars"></div>
+      </div>
+
+      <div class="card">
+        <h2>AI Summary</h2>
+        <p id="summary" class="summary-text"></p>
+      </div>
+
+      <div class="card use-card">
+        <h2>✓ Products to Use</h2>
+        <div id="useList"></div>
+      </div>
+
+      <div class="card avoid-card">
+        <h2>✗ Products to Avoid</h2>
+        <div id="avoidList"></div>
+      </div>
+
+      <div class="card">
+        <h2>📋 Your Routine</h2>
+        <div class="routine-grid">
+          <div>
+            <h3>Morning</h3>
+            <ol id="morningRoutine"></ol>
+          </div>
+          <div>
+            <h3>Night</h3>
+            <ol id="nightRoutine"></ol>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const fileInput    = document.getElementById('fileInput')
+    const uploadBox    = document.getElementById('uploadBox')
+    const uploadContent = document.getElementById('uploadContent')
+    const previewImg   = document.getElementById('previewImg')
+    const analyzeBtn   = document.getElementById('analyzeBtn')
+    const loading      = document.getElementById('loading')
+    const results      = document.getElementById('results')
+
+    uploadBox.addEventListener('click', () => fileInput.click())
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+      const url = URL.createObjectURL(file)
+      previewImg.src = url
+      previewImg.hidden = false
+      uploadContent.hidden = true
+      analyzeBtn.hidden = false
+    })
+
+    analyzeBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0]
+      if (!file) return
+
+      analyzeBtn.hidden = true
+      loading.hidden = false
+      results.hidden = true
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const response = await fetch('/analyze', {
+          method: 'POST',
+          body: formData
+        })
+        const data = await response.json()
+
+        loading.hidden = true
+
+        if (data.error) {
+          alert(data.error)
+          analyzeBtn.hidden = false
+          return
+        }
+
+        renderResults(data)
+        results.hidden = false
+
+      } catch (err) {
+        loading.hidden = false
+        alert('Something went wrong. Please try again.')
+        analyzeBtn.hidden = false
+      }
+    })
+
+    function renderResults(data) {
+      // Tone
+      document.getElementById('fitzpatrick').textContent = `Type ${data.tone.fitzpatrick}`
+      document.getElementById('toneDescription').textContent = data.tone.description
+      document.getElementById('undertone').textContent = `Undertone: ${data.tone.undertone}`
+      document.getElementById('itaAngle').textContent = `ITA Angle: ${data.tone.ita_angle}°`
+
+      // Conditions
+      const conditionBars = document.getElementById('conditionBars')
+      conditionBars.innerHTML = ''
+      for (const [name, data2] of Object.entries(data.conditions)) {
+        const pct = (data2.score / 10) * 100
+        const color = data2.severity === 'high' ? '#e85d30' :
+                      data2.severity === 'moderate' ? '#f0a500' : '#2ecc71'
+        conditionBars.innerHTML += `
+          <div class="condition-row">
+            <span class="condition-name">${name}</span>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${pct}%;background:${color}"></div>
+            </div>
+            <span class="condition-score">${data2.score}/10</span>
+            <span class="badge badge-${data2.severity}">${data2.severity}</span>
+          </div>`
+      }
+
+      // Summary
+      document.getElementById('summary').textContent =
+        data.recommendations.summary || ''
+
+      // Use list
+      const useList = document.getElementById('useList')
+      useList.innerHTML = ''
+      for (const item of (data.recommendations.use || [])) {
+        useList.innerHTML += `
+          <div class="product-item">
+            <div class="product-header">
+              <strong>${item.product}</strong>
+              <span class="when-badge">${item.when}</span>
+            </div>
+            <p>${item.reason}</p>
+          </div>`
+      }
+
+      // Avoid list
+      const avoidList = document.getElementById('avoidList')
+      avoidList.innerHTML = ''
+      for (const item of (data.recommendations.avoid || [])) {
+        avoidList.innerHTML += `
+          <div class="product-item avoid-item">
+            <strong>${item.product}</strong>
+            <p>${item.reason}</p>
+          </div>`
+      }
+
+      // Routine
+      const morning = document.getElementById('morningRoutine')
+      const night   = document.getElementById('nightRoutine')
+      morning.innerHTML = ''
+      night.innerHTML   = ''
+      for (const step of (data.recommendations.routine?.morning || [])) {
+        morning.innerHTML += `<li>${step}</li>`
+      }
+      for (const step of (data.recommendations.routine?.night || [])) {
+        night.innerHTML += `<li>${step}</li>`
+      }
+    }
+  </script>
+
+</body>
+</html>
