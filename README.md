@@ -182,7 +182,7 @@ This system is designed to be sold as a B2B SaaS product to D2C skincare brands 
 
 ## 👤 Built By
 
-**Ojas Singh**
+**Ojas Singh** ,**manishmaheshwari**
 B.Tech Computer Science — Bennett University
 [GitHub](https://github.com/ojas1805) · [LinkedIn](https://linkedin.com/in/ojas-singh)
 
